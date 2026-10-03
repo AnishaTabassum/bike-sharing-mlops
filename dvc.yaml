@@ -1,0 +1,54 @@
+stages:
+  prepare:
+    cmd: python src/prepare.py
+    deps:
+      - src/prepare.py
+      - src/common.py
+      - data/raw/hour.csv
+    params:
+      - prepare
+    outs:
+      - data/processed/train.csv
+      - data/processed/test.csv
+
+  train:
+    cmd: python src/train.py
+    deps:
+      - src/train.py
+      - src/common.py
+      - data/processed/train.csv
+    params:
+      - train
+    outs:
+      - models/model.joblib
+
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+      - src/evaluate.py
+      - src/common.py
+      - data/processed/test.csv
+      - models/model.joblib
+    params:
+      - evaluate
+      - train
+    metrics:
+      - metrics.json:
+          cache: false
+    plots:
+      - reports/figures/actual_vs_predicted.png
+      - reports/figures/feature_importance.png
+
+  stream:
+    cmd: python src/stream.py
+    deps:
+      - src/stream.py
+      - src/common.py
+      - data/processed/test.csv
+    params:
+      - stream
+    metrics:
+      - stream_metrics.json:
+          cache: false
+    plots:
+      - reports/figures/stream_drift.png

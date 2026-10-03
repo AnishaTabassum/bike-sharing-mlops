@@ -1,0 +1,10 @@
+{
+    "stream_mae": 73.72836146284865,
+    "stream_rmse": 130.345002124048,
+    "drift_events_count": 3,
+    "drift_step_indices": [
+        479,
+        4191,
+        4287
+    ]
+}

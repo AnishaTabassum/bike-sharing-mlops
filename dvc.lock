@@ -1,0 +1,137 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python src/prepare.py
+    deps:
+    - path: data/raw/hour.csv
+      hash: md5
+      md5: d50bd5a6f55131e72a7bedc334e2fce1
+      size: 1156736
+    - path: src/common.py
+      hash: md5
+      md5: 11bb5393087ddb727711e5e634aa2166
+      size: 921
+    - path: src/prepare.py
+      hash: md5
+      md5: 1350b4d2f0f20f48dcae63ce91285b68
+      size: 1958
+    params:
+      params.yaml:
+        prepare:
+          test_ratio: 0.25
+    outs:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 8ec9ce2337651564afb74c0f72baefad
+      size: 741941
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 0e833e78696bfae73d66bd9e1d7b00d8
+      size: 2201264
+  train:
+    cmd: python src/train.py
+    deps:
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 0e833e78696bfae73d66bd9e1d7b00d8
+      size: 2201264
+    - path: src/common.py
+      hash: md5
+      md5: 11bb5393087ddb727711e5e634aa2166
+      size: 921
+    - path: src/train.py
+      hash: md5
+      md5: 00cebaf51ca1b0399d42dc4e22475f69
+      size: 1276
+    params:
+      params.yaml:
+        train:
+          max_iter: 300
+          learning_rate: 0.08
+          max_depth: 8
+          min_samples_leaf: 20
+          l2_regularization: 1.0
+          log_target: true
+          seed: 42
+    outs:
+    - path: models/model.joblib
+      hash: md5
+      md5: ca54069ce9d6f6b4108b9384e8bababb
+      size: 1044816
+  evaluate:
+    cmd: python src/evaluate.py
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 8ec9ce2337651564afb74c0f72baefad
+      size: 741941
+    - path: models/model.joblib
+      hash: md5
+      md5: ca54069ce9d6f6b4108b9384e8bababb
+      size: 1044816
+    - path: src/common.py
+      hash: md5
+      md5: 11bb5393087ddb727711e5e634aa2166
+      size: 921
+    - path: src/evaluate.py
+      hash: md5
+      md5: 10518115e54f8008b7a733feea895607
+      size: 3194
+    params:
+      params.yaml:
+        evaluate:
+          importance_sample: 2000
+          seed: 42
+        train:
+          max_iter: 300
+          learning_rate: 0.08
+          max_depth: 8
+          min_samples_leaf: 20
+          l2_regularization: 1.0
+          log_target: true
+          seed: 42
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 3a775fa692fd5346d705543f54829d42
+      size: 112
+    - path: reports/figures/actual_vs_predicted.png
+      hash: md5
+      md5: 568facf8a6e46ad9debb2aa4e43fae4f
+      size: 126918
+    - path: reports/figures/feature_importance.png
+      hash: md5
+      md5: d44e54af6381b6fdbcb4eb31d23c77dd
+      size: 31363
+  stream:
+    cmd: python src/stream.py
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 8ec9ce2337651564afb74c0f72baefad
+      size: 741941
+    - path: src/common.py
+      hash: md5
+      md5: 11bb5393087ddb727711e5e634aa2166
+      size: 921
+    - path: src/stream.py
+      hash: md5
+      md5: 4b8e3bab4c2fd4eb331f90783f46c938
+      size: 3922
+    params:
+      params.yaml:
+        stream:
+          warmup: true
+          n_models: 10
+          adwin_delta: 0.002
+          rolling_window: 168
+          seed: 42
+    outs:
+    - path: reports/figures/stream_drift.png
+      hash: md5
+      md5: 7268c6142e1a236d6c5381a86e3821e4
+      size: 35851
+    - path: stream_metrics.json
+      hash: md5
+      md5: 34b1b966b1be85ba6af66e242cd75a9d
+      size: 189
