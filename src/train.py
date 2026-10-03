@@ -1,41 +1,59 @@
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingRegressor
-from common import FEATURE_COLS, MODEL_PATH, TARGET_COL, TRAIN_PATH, load_params
+import yaml
+from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import Ridge
 
+def train():
+    with open("params.yaml", "r") as f:
+        params = yaml.safe_load(f)["train"]
 
-def train_model():
-    params = load_params()["train"]
+    # Load preprocessed training data
+    train_df = pd.read_csv("data/processed/train.csv")
+    
+    # Identify non-feature columns to drop
+    drop_cols = ["cnt", "dteday", "instant"]
+    existing_drop_cols = [col for col in drop_cols if col in train_df.columns]
+    
+    X_train = train_df.drop(columns=existing_drop_cols)
+    y_train = train_df["cnt"]
 
-    print(f"Loading training data from {TRAIN_PATH}...")
-    train_df = pd.read_csv(TRAIN_PATH)
+    # Optional log transformation on target variable
+    if params.get("log_target", False):
+        y_train = np.log1p(y_train)
 
-    X_train = train_df[FEATURE_COLS]
-    y_train = train_df[TARGET_COL]
+    model_type = params.get("model_type", "hist_gb")
 
-    # Target transformation: log1p stabilizes variance on count data
-    if params.get("log_target", True):
-        y_train_fit = np.log1p(y_train)
+    if model_type == "random_forest":
+        print("Training RandomForestRegressor model...")
+        model = RandomForestRegressor(
+            n_estimators=params.get("max_iter", 200),
+            max_depth=params.get("max_depth", 8),
+            min_samples_leaf=params.get("min_samples_leaf", 20),
+            random_state=params.get("seed", 42),
+            n_jobs=-1
+        )
+    elif model_type == "ridge":
+        print("Training Ridge Regression model...")
+        model = Ridge(
+            alpha=params.get("l2_regularization", 1.0),
+            random_state=params.get("seed", 42)
+        )
     else:
-        y_train_fit = y_train
+        print("Training HistGradientBoostingRegressor model...")
+        model = HistGradientBoostingRegressor(
+            learning_rate=params.get("learning_rate", 0.05),
+            max_iter=params.get("max_iter", 200),
+            max_depth=params.get("max_depth", 8),
+            min_samples_leaf=params.get("min_samples_leaf", 20),
+            l2_regularization=params.get("l2_regularization", 1.0),
+            random_state=params.get("seed", 42)
+        )
 
-    print("Training HistGradientBoostingRegressor model...")
-    model = HistGradientBoostingRegressor(
-        max_iter=params["max_iter"],
-        learning_rate=params["learning_rate"],
-        max_depth=params["max_depth"],
-        min_samples_leaf=params["min_samples_leaf"],
-        l2_regularization=params["l2_regularization"],
-        random_state=params["seed"],
-    )
-
-    model.fit(X_train, y_train_fit)
-
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
-    print(f"Successfully saved trained model artifact to {MODEL_PATH}")
-
+    model.fit(X_train, y_train)
+    joblib.dump(model, "models/model.joblib")
+    print(f"Saved {model_type} model artifact to models/model.joblib")
 
 if __name__ == "__main__":
-    train_model()
+    train()

@@ -2,8 +2,9 @@ prepare:
   test_ratio: 0.25        # last 25% of hours = test set (~Jul-Dec 2012)
 
 train:
-  max_iter: 300
-  learning_rate: 0.08
+  model_type: "hist_gb"   # Options: hist_gb, random_forest, ridge
+  max_iter: 200
+  learning_rate: 0.05
   max_depth: 8
   min_samples_leaf: 20
   l2_regularization: 1.0
@@ -14,7 +15,7 @@ evaluate:
   importance_sample: 2000
   seed: 42
 
-stream:                    # bonus: River online learning + drift monitoring
+stream:                    # River online learning + drift monitoring
   warmup: true
   n_models: 10
   adwin_delta: 0.002

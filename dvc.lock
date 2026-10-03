@@ -41,13 +41,14 @@ stages:
       size: 921
     - path: src/train.py
       hash: md5
-      md5: 00cebaf51ca1b0399d42dc4e22475f69
-      size: 1276
+      md5: 7bb1a62f8c8ca1150af209a03fb3aa8e
+      size: 2152
     params:
       params.yaml:
         train:
-          max_iter: 300
-          learning_rate: 0.08
+          model_type: hist_gb
+          max_iter: 200
+          learning_rate: 0.05
           max_depth: 8
           min_samples_leaf: 20
           l2_regularization: 1.0
@@ -56,8 +57,8 @@ stages:
     outs:
     - path: models/model.joblib
       hash: md5
-      md5: ca54069ce9d6f6b4108b9384e8bababb
-      size: 1044816
+      md5: 540b88912aedfca08b2d760e8f7d45e8
+      size: 730472
   evaluate:
     cmd: python src/evaluate.py
     deps:
@@ -67,24 +68,25 @@ stages:
       size: 741941
     - path: models/model.joblib
       hash: md5
-      md5: ca54069ce9d6f6b4108b9384e8bababb
-      size: 1044816
+      md5: 540b88912aedfca08b2d760e8f7d45e8
+      size: 730472
     - path: src/common.py
       hash: md5
       md5: 11bb5393087ddb727711e5e634aa2166
       size: 921
     - path: src/evaluate.py
       hash: md5
-      md5: 10518115e54f8008b7a733feea895607
-      size: 3194
+      md5: c315a4d10f2d990c46152f25124b930d
+      size: 3875
     params:
       params.yaml:
         evaluate:
           importance_sample: 2000
           seed: 42
         train:
-          max_iter: 300
-          learning_rate: 0.08
+          model_type: hist_gb
+          max_iter: 200
+          learning_rate: 0.05
           max_depth: 8
           min_samples_leaf: 20
           l2_regularization: 1.0
@@ -93,16 +95,16 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: 3a775fa692fd5346d705543f54829d42
+      md5: 60695cc71af7f909994a58c8708e06e4
       size: 112
     - path: reports/figures/actual_vs_predicted.png
       hash: md5
-      md5: 568facf8a6e46ad9debb2aa4e43fae4f
-      size: 126918
+      md5: a958ee0f452a6bac1890763487343924
+      size: 104563
     - path: reports/figures/feature_importance.png
       hash: md5
-      md5: d44e54af6381b6fdbcb4eb31d23c77dd
-      size: 31363
+      md5: d3e9bdf29f8369b756467ced39f1d2cf
+      size: 31826
   stream:
     cmd: python src/stream.py
     deps:

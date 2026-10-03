@@ -1,103 +1,109 @@
 import json
+import os
 import joblib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import yaml
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from common import (
-    FEATURE_COLS,
-    MODEL_PATH,
-    PROJECT_ROOT,
-    TARGET_COL,
-    TEST_PATH,
-    load_params,
-)
 
 
-def evaluate_model():
-    params = load_params()
-    eval_params = params.get("evaluate", {})
+def evaluate():
+    # Load configuration parameters
+    with open("params.yaml", "r") as f:
+        params = yaml.safe_load(f)
+
     train_params = params.get("train", {})
+    eval_params = params.get("evaluate", {})
 
-    print(f"Loading test data from {TEST_PATH}...")
-    test_df = pd.read_csv(TEST_PATH)
+    # Load preprocessed test dataset
+    test_df = pd.read_csv("data/processed/test.csv")
 
-    X_test = test_df[FEATURE_COLS]
-    y_test = test_df[TARGET_COL]
+    # Drop non-feature string/metadata columns
+    drop_cols = ["cnt", "dteday", "instant"]
+    existing_drop_cols = [col for col in drop_cols if col in test_df.columns]
 
-    print(f"Loading trained model from {MODEL_PATH}...")
-    model = joblib.load(MODEL_PATH)
+    X_test = test_df.drop(columns=existing_drop_cols)
+    y_test = test_df["cnt"]
 
-    # Predict and reverse target log-transform if applied during training
-    raw_preds = model.predict(X_test)
-    if train_params.get("log_target", True):
-        preds = np.expm1(raw_preds)
-    else:
-        preds = raw_preds
+    # Load trained model artifact
+    model_path = "models/model.joblib"
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at {model_path}. Run training first.")
 
-    # Ensure non-negative count predictions
-    preds = np.clip(preds, 0, None)
+    model = joblib.load(model_path)
+    print(f"Loaded trained model from {model_path}")
 
-    # Calculate Regression Metrics
-    mae = float(mean_absolute_error(y_test, preds))
-    rmse = float(np.sqrt(mean_squared_error(y_test, preds)))
-    r2 = float(r2_score(y_test, preds))
+    # Generate predictions
+    y_pred = model.predict(X_test)
+
+    # Invert log-transformation if log_target was used during training
+    if train_params.get("log_target", False):
+        y_pred = np.expm1(y_pred)
+        y_pred = np.clip(y_pred, 0, None)
+
+    # Calculate evaluation metrics
+    mae = float(mean_absolute_error(y_test, y_pred))
+    rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+    r2 = float(r2_score(y_test, y_pred))
 
     metrics = {
         "test_mae": mae,
         "test_rmse": rmse,
-        "test_r2": r2,
+        "test_r2": r2
     }
 
-    print("\n--- Evaluation Metrics ---")
-    print(f"MAE:  {mae:.2f}")
-    print(f"RMSE: {rmse:.2f}")
-    print(f"R²:   {r2:.4f}\n")
-
-    # Save metrics JSON
-    metrics_path = PROJECT_ROOT / "metrics.json"
+    # Save metrics.json in root directory
+    metrics_path = "metrics.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=4)
-    print(f"Saved metrics to {metrics_path}")
+    print(f"Metrics saved to {metrics_path}: {metrics}")
 
-    # Generate Reports/Figures
-    figures_dir = PROJECT_ROOT / "reports" / "figures"
-    figures_dir.mkdir(parents=True, exist_ok=True)
+    os.makedirs("reports/figures", exist_ok=True)
 
-    # 1. Actual vs Predicted Plot
-    plt.figure(figsize=(12, 5))
-    plt.plot(y_test.values[:300], label="Actual Demand", alpha=0.8)
-    plt.plot(preds[:300], label="Predicted Demand", alpha=0.8)
-    plt.title("Bike Sharing Demand: Actual vs Predicted (First 300 Test Hours)")
-    plt.xlabel("Hours")
-    plt.ylabel("Bike Rentals Count")
-    plt.legend()
+    # Output 1: Actual vs. Predicted Plot
+    plt.figure(figsize=(8, 6))
+    plt.scatter(y_test, y_pred, alpha=0.3, color="blue")
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--", lw=2)
+    plt.xlabel("Actual Bike Counts")
+    plt.ylabel("Predicted Bike Counts")
+    plt.title("Actual vs. Predicted Bike Sharing Demands")
     plt.tight_layout()
-    plt.savefig(figures_dir / "actual_vs_predicted.png")
+    plot_path = "reports/figures/actual_vs_predicted.png"
+    plt.savefig(plot_path)
     plt.close()
+    print(f"Plot saved to {plot_path}")
 
-    # 2. Permutation Feature Importance
-    print("Computing feature importances...")
-    n_sample = min(eval_params.get("importance_sample", 2000), len(X_test))
-    perm_importance = permutation_importance(
-        model,
-        X_test.iloc[:n_sample],
-        y_test.iloc[:n_sample],
-        random_state=eval_params.get("seed", 42),
-    )
-
+    # Output 2: Feature Importance Plot
+    print("Calculating feature importances...")
     plt.figure(figsize=(10, 6))
-    sorted_idx = perm_importance.importances_mean.argsort()
-    plt.barh(np.array(FEATURE_COLS)[sorted_idx], perm_importance.importances_mean[sorted_idx])
-    plt.title("Permutation Feature Importance")
-    plt.xlabel("Mean Importance Decrease")
-    plt.tight_layout()
-    plt.savefig(figures_dir / "feature_importance.png")
-    plt.close()
 
-    print(f"Saved evaluation figures to {figures_dir}")
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        indices = np.argsort(importances)
+        plt.barh(range(len(indices)), importances[indices], align="center")
+        plt.yticks(range(len(indices)), [X_test.columns[i] for i in indices])
+    else:
+        # Fallback for models without direct feature_importances_ (e.g., Ridge)
+        sample_size = min(len(X_test), eval_params.get("importance_sample", 2000))
+        X_sample = X_test.iloc[:sample_size]
+        y_sample = y_test.iloc[:sample_size]
+        result = permutation_importance(
+            model, X_sample, y_sample, n_repeats=5, random_state=eval_params.get("seed", 42)
+        )
+        indices = np.argsort(result.importances_mean)
+        plt.barh(range(len(indices)), result.importances_mean[indices], align="center")
+        plt.yticks(range(len(indices)), [X_test.columns[i] for i in indices])
+
+    plt.xlabel("Importance Score")
+    plt.title("Feature Importances")
+    plt.tight_layout()
+    fi_plot_path = "reports/figures/feature_importance.png"
+    plt.savefig(fi_plot_path)
+    plt.close()
+    print(f"Plot saved to {fi_plot_path}")
 
 
 if __name__ == "__main__":
-    evaluate_model()
+    evaluate()
